@@ -39,6 +39,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <cstdint>
 
 // One output row.
 struct Row {
@@ -57,9 +58,16 @@ std::vector<Row> decodeLog(const std::string& path) {
     double firstTimestamp;
 
     while (std::getline(canLog, line)) {
+
+        // BO_ 512 STEER_ActuatorLog: 8 Vector__XXX
+        // canID: 512 == 0x200
+        if (line.find(" 200#") == std::string::npos) continue;
+
         double timestamp = std::stod(line.substr(1));
         if (rows.empty()) firstTimestamp = timestamp;
 
+        // read # "00009600242FB01D" 8 byte hex and convert it to 64 bit integer
+        // to access the raw data using bit operations
         size_t hashPos = line.find('#');
         std::string hexPayload = line.substr(hashPos + 1);
         uint64_t canData = std::stoull(hexPayload, nullptr, 16);
@@ -78,12 +86,6 @@ std::vector<Row> decodeLog(const std::string& path) {
 
         // SG_ CmdAngularRate : 16|16@1- (0.1,0) [0|0] "deg/s" Vector__XXX
         double CmdAngularRate = (int16_t)rawData[1] * 0.1;
-
-        // SG_ SupplyMilliVolts : 32|16@1+ (1,0) [0|0] "mV" Vector__XXX
-        double SupplyMilliVolts = rawData[2];
-
-        // SG_ ActuatorTemp : 48|16@1- (0.01,-40) [0|0] "degC" Vector__XXX
-        double ActuatorTemp = (int16_t)rawData[3] * 0.1 - 40;
 
         rows.push_back(Row{
             timestamp - firstTimestamp,
@@ -114,36 +116,4 @@ int main() {
         std::printf("%-14s %6zu frames -> %s\n", n, rows.size(), out.c_str());
     }
     return 0;
-}
-
-
-std::vector<Row> decodeLog(const std::string& path) {
-    std::vector<Row> rows;
-
-    // 1. Open file at path
-
-    // 2. Read one text line at a time
-    while (...) {
-
-        // 3. Parse the line:
-        //    timestamp
-        //    CAN ID
-        //    8-byte CAN payload
-
-        // 4. Ignore frames that aren't CAN ID 512 / 0x200
-
-        // 5. Decode payload using DBC:
-        //    bytes 0-1 -> MeasuredAngle
-        //    bytes 2-3 -> CmdAngularRate
-
-        // 6. Apply scale of 0.1
-
-        // 7. Calculate relative time:
-        //    current timestamp - first kept timestamp
-
-        // 8. Add:
-        rows.push_back(Row{t, u_commanded, y_measured});
-    }
-
-    return rows;
 }
