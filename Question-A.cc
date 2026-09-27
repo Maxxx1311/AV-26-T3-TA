@@ -52,8 +52,45 @@ struct Row {
 std::vector<Row> decodeLog(const std::string& path) {
     std::vector<Row> rows;
 
-    // TODO: your code here
-    (void)path;  // remove once you open the file
+    std::ifstream canLog(path);
+    std::string line;
+    double firstTimestamp;
+
+    while (std::getline(canLog, line)) {
+        double timestamp = std::stod(line.substr(1));
+        if (rows.empty()) firstTimestamp = timestamp;
+
+        size_t hashPos = line.find('#');
+        std::string hexPayload = line.substr(hashPos + 1);
+        uint64_t canData = std::stoull(hexPayload, nullptr, 16);
+
+        // read little endian
+        uint16_t rawData[4];
+        for (int i = 0; i < 4; i++) {
+            uint16_t lowByte = (canData >> (8 * (7 - 2 * i))) & 0xFF;  
+            uint16_t highByte = (canData >> (8 * (6 - 2 * i))) & 0xFF;
+
+            rawData[i] = lowByte | (highByte << 8);
+        }
+
+        // SG_ MeasuredAngle : 0|16@1- (0.1,0) [0|0] "deg" Vector__XXX
+        double MeasuredAngle = (int16_t)rawData[0] * 0.1;
+
+        // SG_ CmdAngularRate : 16|16@1- (0.1,0) [0|0] "deg/s" Vector__XXX
+        double CmdAngularRate = (int16_t)rawData[1] * 0.1;
+
+        // SG_ SupplyMilliVolts : 32|16@1+ (1,0) [0|0] "mV" Vector__XXX
+        double SupplyMilliVolts = rawData[2];
+
+        // SG_ ActuatorTemp : 48|16@1- (0.01,-40) [0|0] "degC" Vector__XXX
+        double ActuatorTemp = (int16_t)rawData[3] * 0.1 - 40;
+
+        rows.push_back(Row{
+            timestamp - firstTimestamp,
+            CmdAngularRate,
+            MeasuredAngle
+        });
+    }
 
     return rows;
 }
@@ -77,4 +114,36 @@ int main() {
         std::printf("%-14s %6zu frames -> %s\n", n, rows.size(), out.c_str());
     }
     return 0;
+}
+
+
+std::vector<Row> decodeLog(const std::string& path) {
+    std::vector<Row> rows;
+
+    // 1. Open file at path
+
+    // 2. Read one text line at a time
+    while (...) {
+
+        // 3. Parse the line:
+        //    timestamp
+        //    CAN ID
+        //    8-byte CAN payload
+
+        // 4. Ignore frames that aren't CAN ID 512 / 0x200
+
+        // 5. Decode payload using DBC:
+        //    bytes 0-1 -> MeasuredAngle
+        //    bytes 2-3 -> CmdAngularRate
+
+        // 6. Apply scale of 0.1
+
+        // 7. Calculate relative time:
+        //    current timestamp - first kept timestamp
+
+        // 8. Add:
+        rows.push_back(Row{t, u_commanded, y_measured});
+    }
+
+    return rows;
 }
